@@ -1,3 +1,3 @@
 # maester_bot
 
-Winter is here!
+Winter is here.
