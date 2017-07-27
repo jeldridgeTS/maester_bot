@@ -1,65 +1,6 @@
 const _ = require('lodash')
 
-var request = require('request')
-
-function getRelativeName(url, charInfo, relativeType, cb) {
-    request(url, (err, res, body) => {
-        if (!err && res.statusCode == 200) {
-            var data = JSON.parse(body)
-            charInfo[relativeType] = data.name
-        } else {
-            console.log('Could not find any records.')
-        }
-        cb(charInfo)
-    })
-}
-
-// TODO
-function getAllegiances(url, allegiances, cb) {
-
-}
-
-function getCharInfo(url, cb) {
-    var charInfo = {}
-    request(url, (err, res, body) => {
-        console.log(url)
-        if (!err && res.statusCode == 200) {
-            var data = JSON.parse(body)
-
-            if (data.length === 1) {
-                charInfo.name         = data[0].name
-                charInfo.born         = data[0].born
-                charInfo.culture      = data[0].culture
-                charInfo.titles       = data[0].titles.join(",  ")
-                charInfo.aliases      = data[0].aliases.join(",  ")
-                charInfo.allegiances  = data[0].allegiances.join(", ")
-                charInfo.spouse       = data[0].spouse
-            } else if (data.length > 1) {
-                bot.reply(msg, 'We have too many similar records, I need specifics!')
-            } else {
-                bot.reply(msg, 'I do not recall that name.')
-            }
-        }
-
-        if (charInfo.spouse) {
-            url = charInfo.spouse
-            charInfo.spouse = getRelativeName(url, charInfo, 'spouse', cb)
-        }
-    })
-}
-
-function replyCharInfo(bot, msg, charInfo) {
-    bot.reply(msg, {
-        text :
-            charInfo.name                             + "\n\n" +
-            "Born: "          + charInfo.born         + "\n\n" +
-            "Titles: \n"      + charInfo.titles       + "\n\n" +
-            "Aliases: \n"     + charInfo.aliases      + "\n\n" +
-            "Allegiances: \n" + charInfo.allegiances  + "\n\n" +
-            "Culture: "       + charInfo.culture      + "\n\n" +
-            "Spouse: "        + charInfo.spouse
-    })
-}
+const axios = require('axios')
 
 module.exports = (controller) => {
 
@@ -69,7 +10,7 @@ module.exports = (controller) => {
         var url = `http://www.anapioficeandfire.com/api/characters/?name=${msg.match[1]}`
         var charInfo = {}
 
-        getCharInfo(url, function(charInfo) {
+        getCharacterInfo(url, (charInfo) => {
             replyCharInfo(bot, msg, charInfo)
         })
     })
@@ -94,5 +35,67 @@ module.exports = (controller) => {
             }
         })
 
+    })
+}
+
+// ************************************ FUN ************************************ //
+
+var replyCharInfo = (bot, msg, charInfo) => {
+    bot.reply(msg, {
+        text :
+            charInfo.name                             + "\n\n" +
+            "Born: "          + charInfo.born         + "\n\n" +
+            "Titles: \n"      + charInfo.titles       + "\n\n" +
+            "Aliases: \n"     + charInfo.aliases      + "\n\n" +
+            "Allegiances: \n" + charInfo.allegiances  + "\n\n" +
+            "Culture: "       + charInfo.culture      + "\n\n" +
+            "Spouse: "        + charInfo.spouse
+    })
+}
+
+var getCharacterInfo = (initialURL, callback) => {
+    var characterInfo = {}
+    var spouseAndAlly
+    axios.get(initialURL).then((response) => {
+        if (response.data.length === 0) { throw new Error('Unable to find that character') }
+
+        if (response.status == 200) {
+            if (response.data.length === 1) {
+                characterInfo.name         = response.data[0].name
+                characterInfo.born         = response.data[0].born
+                characterInfo.culture      = response.data[0].culture
+                characterInfo.titles       = response.data[0].titles.join(",  ")
+                characterInfo.aliases      = response.data[0].aliases.join(",  ")
+                characterInfo.allegiances  = response.data[0].allegiances
+                characterInfo.spouse       = response.data[0].spouse
+            }
+        }
+
+        // axios.all([ axios.get(characterInfo.allegiances[0]), axios.get(characterInfo.allegiances[1]) ])
+        //     .then(axios.spread((acct, perms) => {
+        //         console.log(acct)
+        //         console.log(perms)
+        //     }))
+
+        return axios.get(characterInfo.allegiances[0])
+
+    }).then((response) => {
+        // console.log(response.data)
+        characterInfo.allegiances = response.data.name
+        if (characterInfo.spouse) {
+            return axios.get(characterInfo.spouse)
+        } else {
+            characterInfo.spouse = 'Ah... no records of marriage.'
+            callback(characterInfo)
+        }
+    }).then((response) => {
+        characterInfo.spouse = response.data.name
+        callback(characterInfo)
+    }).catch((e) => {
+        if (e.code === 'ENOTFOUND') {
+            console.log('Unable to connect to api server')
+        } else {
+            console.log(e.message)
+        }
     })
 }

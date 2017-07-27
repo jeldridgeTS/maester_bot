@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.16.2",
     "botkit": "^0.2.2",
     "lodash": "^4.17.4",
     "pryjs": "^1.0.3",
