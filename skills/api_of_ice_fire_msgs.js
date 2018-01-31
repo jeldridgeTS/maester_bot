@@ -41,86 +41,88 @@ module.exports = (controller) => {
 var replyCharInfo = (bot, msg, charInfo) => {
     bot.reply(msg, {
         text :
-            charInfo.name                             + "\n\n" +
-            "Born: "          + charInfo.born         + "\n\n" +
-            "Titles: \n"      + charInfo.titles       + "\n\n" +
-            "Aliases: \n"     + charInfo.aliases      + "\n\n" +
-            "Allegiances: \n" + charInfo.allegiances  + "\n\n" +
-            "Culture: "       + charInfo.culture      + "\n\n" +
-            "Spouse: "        + charInfo.spouse
+            charInfo.name                                  + "\n\n" +
+            "Born "                + charInfo.born         + "\n\n" +
+            "Titles: \n"           + charInfo.titles       + "\n\n" +
+            "Aliases: \n"          + charInfo.aliases      + "\n\n" +
+            "Allegiances: \n"      + charInfo.allegiances  + "\n\n" +
+            "Culture: "            + charInfo.culture      + "\n\n" +
+            "Spouse: "             + charInfo.spouse       + "\n\n" +
+            "POV in Books: \n"     + charInfo.books
     })
 }
-
 
 // All the business to get the char info
 var getCharacterInfo = (initialURL, callback) => {
   var characterInfo = {}
-  var spouseAndAlly
-  axios.get(initialURL).then((response) => {
-    if (response.data.length === 0) { throw new Error('Unable to find that character') }
-
-    if (response.status == 200) {
-      if (response.data.length === 1) {
-        characterInfo.name         = response.data[0].name
-        characterInfo.born         = response.data[0].born
-        characterInfo.culture      = response.data[0].culture
-        characterInfo.titles       = response.data[0].titles.join(",  ")
-        characterInfo.aliases      = response.data[0].aliases.join(",  ")
-        characterInfo.allegiances  = response.data[0].allegiances
-        characterInfo.spouse       = response.data[0].spouse
+  
+  axios.get(initialURL)
+    .then((response) => {
+      console.log(response)
+      if (response.data.length === 0) { throw new Error('Unable to find that character') }
+      if (response.status == 200) {
+        if (response.data.length === 1) {
+          characterInfo.name         = response.data[0].name
+          characterInfo.born         = response.data[0].born
+          characterInfo.culture      = response.data[0].culture
+          characterInfo.titles       = response.data[0].titles.join(",  ")
+          characterInfo.aliases      = response.data[0].aliases.join(",  ")
+          characterInfo.allegiances  = response.data[0].allegiances
+          characterInfo.spouse       = response.data[0].spouse
+          characterInfo.books        = response.data[0].povBooks
+        }
       }
-    }
 
-    var promiseArray = characterInfo.allegiances.concat(characterInfo.spouse).unique()
+      var promiseArray = [
+        getSpouse(characterInfo), 
+        getAllegiances(characterInfo), 
+        getPOVBooks(characterInfo)
+      ]
 
-    console.log(promiseArray)
-
-    return axios.all(characterInfo.allegiances.map(link => axios.get(link)))
-      .then(axios.spread((...results) => {
-        characterInfo.allegiances = results[0].data.name
-        console.log(results.length)
-      }))
-      .catch((e) => {
-        console.log(e)
-      })
-  })
-  .then((response) => {
-    if (characterInfo.spouse) {
-      return axios.get(characterInfo.spouse)
-    } else {
-      characterInfo.spouse = 'Ah... no records of marriage.'
+      return axios.all(promiseArray)
+    })
+    .then((response) => {
       callback(characterInfo)
-    }
-  })
-  .then((response) => {
-    characterInfo.spouse = response.data.name
-    callback(characterInfo)
-  })
-  .catch((e) => {
-    if (e.code === 'ENOTFOUND') {
-      console.log('Unable to connect to api server')
-    } else {
-      console.log(e.message)
-    }
-  })
+    })
 }
 
 // Get additional info (to be used in promise array)
-var getSpouses = () => {
-  axios.get(characterInfo.spouse)
-    .then((response) => characterInfo.spouse = response.data.name)
-    .catch((e) => console.log(e))
+var getSpouse = (characterInfo) => {
+  if (characterInfo.spouse) {
+    return axios.get(characterInfo.spouse)
+      .then((response) => characterInfo.spouse = response.data.name)
+      .catch((e) => console.log(e))
+  } else {
+    characterInfo.spouse = 'Ah, it appears there are no spousal records...'
+  }
 }
 
-var getAllegiances = () => {
-  axios.all(characterInfo.allegiances.map(link => axios.get(link)))
+var getAllegiances = (characterInfo) => {
+  if (characterInfo.allegiances.length > 0) {
+    return axios.all(characterInfo.allegiances.map(link => axios.get(link)))
+      .then(axios.spread((...results) => {
+        characterInfo.allegiances = []
+        results.forEach((element) => characterInfo.allegiances.push(element.data.name))
+      }))
+      .catch((e) => console.log(e))
+  } else {
+    characterInfo.allegiances = "Looks like they aren't very loyal."
+  }
+  
+}
+
+var getPOVBooks = (characterInfo) => {
+  if (characterInfo.books.length > 0) {
+    return axios.all(characterInfo.books.map(link => axios.get(link)))
     .then(axios.spread((...results) => {
-      characterInfo.allegiances = results[0].data.name
-      console.log(results.length)
+      characterInfo.books = []
+      results.forEach((element) => characterInfo.books.push(element.data.name))
+      characterInfo.books = characterInfo.books.join(",  ")
     }))
-    .catch((e) => {
-      console.log(e)
-    })
+    .catch((e) => console.log(e))
+  } else {
+    characterInfo.books = "We don't know their perspective."
+  }
 }
 
 // Utility method for pruning duplicate array elements after concat
