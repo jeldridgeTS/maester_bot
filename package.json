@@ -9,8 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.16.2",
     "botkit": "^0.2.2",
     "lodash": "^4.17.4",
+    "nodemon": "^1.14.11",
     "pryjs": "^1.0.3",
     "request": "^2.74.0"
   }
